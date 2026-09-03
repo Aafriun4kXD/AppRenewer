@@ -3,7 +3,6 @@ options:
   bundleIdPrefix: com.apprenewer
   deploymentTarget:
     iOS: "16.0"
-  xcodeVersion: "15.0"
 
 targets:
   AppRenewer:
@@ -11,19 +10,25 @@ targets:
     platform: iOS
     deploymentTarget: "16.0"
     sources:
-      - AppRenewer
+      - path: .
+        includes:
+          - "**/*.swift"
+          - "Info.plist"
+        excludes:
+          - ".github/**"
+          - "build/**"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.apprenewer.app
         SWIFT_VERSION: 5.9
-        TARGETED_DEVICE_FAMILY: 1
-        IPHONEOS_DEPLOYMENT_TARGET: 16.0
+        TARGETED_DEVICE_FAMILY: "1"
+        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
         CODE_SIGN_IDENTITY: ""
         CODE_SIGNING_REQUIRED: NO
         CODE_SIGNING_ALLOWED: NO
-        INFOPLIST_FILE: AppRenewer/Info.plist
+        INFOPLIST_FILE: Info.plist
     info:
-      path: AppRenewer/Info.plist
+      path: Info.plist
       properties:
         CFBundleName: AppRenewer
         CFBundleDisplayName: AppRenewer
