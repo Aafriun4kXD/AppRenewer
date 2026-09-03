@@ -1,187 +1,142 @@
-import Foundation
+import UIKit
 
-class AppSigningService {
-    static let shared = AppSigningService()
+class MainViewController: UIViewController {
     
-    private let altStoreSourceURL = "https://cdn.altstore.io/file/altstore/apps.json"
+    private let titleLabel: UILabel = {
+        let label = UILabel()
+        label.text = "AppRenewer"
+        label.font = .systemFont(ofSize: 32, weight: .bold)
+        label.textAlignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }()
     
-    func renewApp(_ app: InstalledApp, credentials: AppleIDCredentials) async throws {
-        guard let session = credentials.session, session.isValid else {
-            throw SigningError.invalidSession
-        }
-        
-        let certificate = try await fetchDeveloperCertificate(credentials: credentials)
-        let profile = try await fetchProvisioningProfile(
-            bundleId: app.bundleIdentifier,
-            certificate: certificate,
-            credentials: credentials
-        )
-        try await installProfile(profile, for: app)
+    private let subtitleLabel: UILabel = {
+        let label = UILabel()
+        label.text = "Мониторинг и продление подписанных приложений"
+        label.font = .systemFont(ofSize: 14)
+        label.textColor = .secondaryLabel
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }()
+    
+    private let appsButton: UIButton = {
+        var config = UIButton.Configuration.filled()
+        config.title = "Мои приложения"
+        config.image = UIImage(systemName: "apps.iphone")
+        config.imagePadding = 8
+        config.cornerStyle = .large
+        let button = UIButton(configuration: config)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        return button
+    }()
+    
+    private let loginButton: UIButton = {
+        var config = UIButton.Configuration.tinted()
+        config.title = "Apple ID"
+        config.image = UIImage(systemName: "person.circle")
+        config.imagePadding = 8
+        config.cornerStyle = .large
+        let button = UIButton(configuration: config)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        return button
+    }()
+    
+    private let statusView: UIView = {
+        let view = UIView()
+        view.backgroundColor = .secondarySystemBackground
+        view.layer.cornerRadius = 16
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
+    }()
+    
+    private let statusLabel: UILabel = {
+        let label = UILabel()
+        label.font = .systemFont(ofSize: 13)
+        label.textColor = .secondaryLabel
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }()
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        setupUI()
+        setupActions()
+        updateStatus()
+        NotificationService.shared.requestPermission()
+        BackgroundTaskManager.shared.scheduleAppCheck()
     }
     
-    private struct DeveloperCertificate {
-        let data: Data
-        let privateKey: Data
-        let expirationDate: Date
+    private func setupUI() {
+        view.backgroundColor = .systemBackground
+        title = "AppRenewer"
+        
+        view.addSubview(titleLabel)
+        view.addSubview(subtitleLabel)
+        view.addSubview(statusView)
+        statusView.addSubview(statusLabel)
+        view.addSubview(appsButton)
+        view.addSubview(loginButton)
+        
+        NSLayoutConstraint.activate([
+            titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 48),
+            titleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            
+            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
+            subtitleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
+            subtitleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
+            
+            statusView.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 32),
+            statusView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
+            statusView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+            
+            statusLabel.topAnchor.constraint(equalTo: statusView.topAnchor, constant: 16),
+            statusLabel.leadingAnchor.constraint(equalTo: statusView.leadingAnchor, constant: 16),
+            statusLabel.trailingAnchor.constraint(equalTo: statusView.trailingAnchor, constant: -16),
+            statusLabel.bottomAnchor.constraint(equalTo: statusView.bottomAnchor, constant: -16),
+            
+            appsButton.topAnchor.constraint(equalTo: statusView.bottomAnchor, constant: 32),
+            appsButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
+            appsButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+            appsButton.heightAnchor.constraint(equalToConstant: 52),
+            
+            loginButton.topAnchor.constraint(equalTo: appsButton.bottomAnchor, constant: 12),
+            loginButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
+            loginButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+            loginButton.heightAnchor.constraint(equalToConstant: 52)
+        ])
     }
     
-    private func fetchDeveloperCertificate(credentials: AppleIDCredentials) async throws -> DeveloperCertificate {
-        guard let session = credentials.session else { throw SigningError.invalidSession }
-        
-        let teamID = try await getTeamID(credentials: credentials)
-        
-        var request = URLRequest(url: URL(string: "https://developerservices2.apple.com/services/v1/certificates")!)
-        request.httpMethod = "POST"
-        request.setValue("application/vnd.api+json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(session.token)", forHTTPHeaderField: "Authorization")
-        
-        let body: [String: Any] = [
-            "data": [
-                "type": "certificates",
-                "attributes": [
-                    "certificateType": "IOS_DEVELOPMENT",
-                    "csrContent": generateCSR()
-                ]
-            ]
-        ]
-        
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
-        let (data, _) = try await URLSession.shared.data(for: request)
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let certData = json["data"] as? [String: Any],
-              let attrs = certData["attributes"] as? [String: Any],
-              let certContent = attrs["certificateContent"] as? String,
-              let certData = Data(base64Encoded: certContent)
-        else {
-            throw SigningError.certificateFetchFailed
-        }
-        
-        return DeveloperCertificate(
-            data: certData,
-            privateKey: Data(),
-            expirationDate: Date().addingTimeInterval(60 * 60 * 24 * 7)
-        )
+    private func setupActions() {
+        appsButton.addTarget(self, action: #selector(showApps), for: .touchUpInside)
+        loginButton.addTarget(self, action: #selector(showLogin), for: .touchUpInside)
     }
     
-    private func getTeamID(credentials: AppleIDCredentials) async throws -> String {
-        guard let session = credentials.session else { throw SigningError.invalidSession }
+    private func updateStatus() {
+        let apps = AppDetectionService.shared.getInstalledApps()
+        let expiring = apps.filter { $0.isExpiringSoon }.count
+        let expired = apps.filter { $0.isExpired }.count
+        let credentials = CredentialsStore.shared.load()
         
-        var request = URLRequest(url: URL(string: "https://developerservices2.apple.com/services/v1/teams")!)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(session.token)", forHTTPHeaderField: "Authorization")
+        var statusText = "📱 Найдено приложений: \(apps.count)\n"
+        statusText += "⚠️ Истекают скоро: \(expiring)\n"
+        statusText += "❌ Истекли: \(expired)\n"
+        statusText += credentials != nil ? "✅ Apple ID подключён" : "❌ Apple ID не настроен"
         
-        let (data, _) = try await URLSession.shared.data(for: request)
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let teams = json["data"] as? [[String: Any]],
-              let firstTeam = teams.first,
-              let attrs = firstTeam["attributes"] as? [String: Any],
-              let teamID = attrs["teamId"] as? String
-        else {
-            throw SigningError.teamFetchFailed
-        }
-        
-        return teamID
+        statusLabel.text = statusText
     }
     
-    private func fetchProvisioningProfile(bundleId: String, certificate: DeveloperCertificate, credentials: AppleIDCredentials) async throws -> Data {
-        guard let session = credentials.session else { throw SigningError.invalidSession }
-        
-        var request = URLRequest(url: URL(string: "https://developerservices2.apple.com/services/v1/bundleIds")!)
-        request.httpMethod = "POST"
-        request.setValue("application/vnd.api+json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(session.token)", forHTTPHeaderField: "Authorization")
-        
-        let bundleBody: [String: Any] = [
-            "data": [
-                "type": "bundleIds",
-                "attributes": [
-                    "identifier": bundleId,
-                    "name": bundleId.replacingOccurrences(of: ".", with: "-"),
-                    "platform": "IOS"
-                ]
-            ]
-        ]
-        
-        request.httpBody = try JSONSerialization.data(withJSONObject: bundleBody)
-        
-        let (bundleData, _) = try await URLSession.shared.data(for: request)
-        guard let bundleJson = try? JSONSerialization.jsonObject(with: bundleData) as? [String: Any],
-              let bundleDataObj = bundleJson["data"] as? [String: Any],
-              let bundleID = bundleDataObj["id"] as? String
-        else {
-            throw SigningError.bundleIdFailed
-        }
-        
-        var profileRequest = URLRequest(url: URL(string: "https://developerservices2.apple.com/services/v1/profiles")!)
-        profileRequest.httpMethod = "POST"
-        profileRequest.setValue("application/vnd.api+json", forHTTPHeaderField: "Content-Type")
-        profileRequest.setValue("Bearer \(session.token)", forHTTPHeaderField: "Authorization")
-        
-        let profileBody: [String: Any] = [
-            "data": [
-                "type": "profiles",
-                "attributes": [
-                    "name": "\(bundleId)_profile",
-                    "profileType": "IOS_APP_DEVELOPMENT"
-                ],
-                "relationships": [
-                    "bundleId": ["data": ["type": "bundleIds", "id": bundleID]],
-                    "certificates": ["data": [["type": "certificates", "id": "CERT_ID"]]]
-                ]
-            ]
-        ]
-        
-        profileRequest.httpBody = try JSONSerialization.data(withJSONObject: profileBody)
-        
-        let (profileData, _) = try await URLSession.shared.data(for: profileRequest)
-        guard let profileJson = try? JSONSerialization.jsonObject(with: profileData) as? [String: Any],
-              let profDataObj = profileJson["data"] as? [String: Any],
-              let profAttrs = profDataObj["attributes"] as? [String: Any],
-              let profileContent = profAttrs["profileContent"] as? String,
-              let decodedProfile = Data(base64Encoded: profileContent)
-        else {
-            throw SigningError.profileFetchFailed
-        }
-        
-        return decodedProfile
+    @objc private func showApps() {
+        let vc = AppListViewController()
+        navigationController?.pushViewController(vc, animated: true)
     }
     
-    private func installProfile(_ profileData: Data, for app: InstalledApp) async throws {
-        guard let appPath = AppDetectionService.shared.getAppsBundlePath(for: app.bundleIdentifier) else {
-            throw SigningError.appPathNotFound
-        }
-        
-        let profilePath = "\(appPath)/embedded.mobileprovision"
-        
-        guard FileManager.default.fileExists(atPath: appPath) else {
-            throw SigningError.appPathNotFound
-        }
-        
-        try profileData.write(to: URL(fileURLWithPath: profilePath))
-    }
-    
-    private func generateCSR() -> String {
-        return Data((0..<256).map { _ in UInt8.random(in: 0...255) }).base64EncodedString()
-    }
-    
-    enum SigningError: LocalizedError {
-        case invalidSession
-        case certificateFetchFailed
-        case teamFetchFailed
-        case bundleIdFailed
-        case profileFetchFailed
-        case appPathNotFound
-        
-        var errorDescription: String? {
-            switch self {
-            case .invalidSession: return "Сессия недействительна"
-            case .certificateFetchFailed: return "Не удалось получить сертификат"
-            case .teamFetchFailed: return "Не удалось получить Team ID"
-            case .bundleIdFailed: return "Не удалось зарегистрировать Bundle ID"
-            case .profileFetchFailed: return "Не удалось получить профиль"
-            case .appPathNotFound: return "Путь к приложению не найден"
-            }
-        }
+    @objc private func showLogin() {
+        let vc = LoginViewController()
+        navigationController?.pushViewController(vc, animated: true)
     }
 }

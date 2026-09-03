@@ -5,9 +5,7 @@ class AppleAuthService {
     static let shared = AppleAuthService()
     
     private let gsaURL = "https://gsa.apple.com/grandslam/GsService2"
-    private let appleIDURL = "https://idmsa.apple.com/appleauth/auth"
-    
-    private var session = URLSession(configuration: .default)
+    private let urlSession = URLSession(configuration: .default)
     
     func authenticate(email: String, password: String) async throws -> AppleIDCredentials {
         let srpResult = try await performSRPAuth(email: email, password: password)
@@ -43,7 +41,7 @@ class AppleAuthService {
         let authResult = try await sendSRPProof(
             email: email,
             proof: proof,
-            session: serverResponse.session
+            srpSession: serverResponse.session
         )
         return authResult
     }
@@ -82,7 +80,7 @@ class AppleAuthService {
         
         request.httpBody = try PropertyListSerialization.data(fromPropertyList: body, format: .xml, options: 0)
         
-        let (data, _) = try await session.data(for: request)
+        let (data, _) = try await urlSession.data(for: request)
         guard let response = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
               let saltB64 = response["s"] as? String,
               let serverPublicKeyB64 = response["B"] as? String,
@@ -96,14 +94,20 @@ class AppleAuthService {
         return ServerSRPResponse(salt: saltData, publicKey: serverPublicKey, session: srpSession)
     }
     
-    private func computeSRPProof(email: String, password: String, salt: Data, serverPublicKey: Data, clientPrivateKey: Data) throws -> Data {
+    private func computeSRPProof(
+        email: String,
+        password: String,
+        salt: Data,
+        serverPublicKey: Data,
+        clientPrivateKey: Data
+    ) throws -> Data {
         let passwordData = Data(password.utf8)
         let saltedPassword = salt + passwordData
         let hash = SHA256.hash(data: saltedPassword)
         return Data(hash)
     }
     
-    private func sendSRPProof(email: String, proof: Data, session: String) async throws -> SRPResult {
+    private func sendSRPProof(email: String, proof: Data, srpSession: String) async throws -> SRPResult {
         var request = URLRequest(url: URL(string: gsaURL)!)
         request.httpMethod = "POST"
         request.setValue("application/x-apple-plist", forHTTPHeaderField: "Content-Type")
@@ -111,14 +115,14 @@ class AppleAuthService {
         
         let body: [String: Any] = [
             "M1": proof.base64EncodedString(),
-            "c": session,
+            "c": srpSession,
             "u": email,
             "o": "complete"
         ]
         
         request.httpBody = try PropertyListSerialization.data(fromPropertyList: body, format: .xml, options: 0)
         
-        let (data, _) = try await session.data(for: request)
+        let (data, _) = try await urlSession.data(for: request)
         guard let response = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
               let status = response["Status"] as? [String: Any],
               let ec = status["ec"] as? Int, ec == 0,
