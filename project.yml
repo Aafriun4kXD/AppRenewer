@@ -10,13 +10,12 @@ targets:
     platform: iOS
     deploymentTarget: "16.0"
     sources:
-      - path: .
-        includes:
-          - "**/*.swift"
-          - "Info.plist"
-        excludes:
-          - ".github/**"
-          - "build/**"
+      - path: AppDelegate.swift
+      - path: SceneDelegate.swift
+      - path: Models
+      - path: Services
+      - path: Views
+      - path: Background
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.apprenewer.app
