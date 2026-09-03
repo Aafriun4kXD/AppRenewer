@@ -8,13 +8,22 @@ on:
 jobs:
   build:
     runs-on: macos-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Select Xcode
-      run: sudo xcode-select -switch /Applications/Xcode.app
-    
+
+    - name: Install XcodeGen
+      run: brew install xcodegen
+
+    - name: Generate Xcode project
+      run: xcodegen generate
+
+    - name: Show Xcode version
+      run: xcodebuild -version
+
+    - name: List schemes
+      run: xcodebuild -project AppRenewer.xcodeproj -list
+
     - name: Build unsigned IPA
       run: |
         xcodebuild \
@@ -26,15 +35,16 @@ jobs:
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO \
+          COMPILER_INDEX_STORE_ENABLE=NO \
           build
-          
+
     - name: Package IPA
       run: |
         mkdir -p Payload
         cp -r build/Build/Products/Release-iphoneos/AppRenewer.app Payload/
         zip -r AppRenewer.ipa Payload/
-        
-    - name: Upload IPA artifact
+
+    - name: Upload IPA
       uses: actions/upload-artifact@v4
       with:
         name: AppRenewer-IPA
