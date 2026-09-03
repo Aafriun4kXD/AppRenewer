@@ -10,7 +10,7 @@ jobs:
     runs-on: macos-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Select Xcode
       run: sudo xcode-select -switch /Applications/Xcode.app
@@ -35,7 +35,7 @@ jobs:
         zip -r AppRenewer.ipa Payload/
         
     - name: Upload IPA artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: AppRenewer-IPA
         path: AppRenewer.ipa
