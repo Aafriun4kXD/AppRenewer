@@ -1,0 +1,41 @@
+name: Build AppRenewer IPA
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Select Xcode
+      run: sudo xcode-select -switch /Applications/Xcode.app
+    
+    - name: Build unsigned IPA
+      run: |
+        xcodebuild \
+          -project AppRenewer.xcodeproj \
+          -scheme AppRenewer \
+          -configuration Release \
+          -sdk iphoneos \
+          -derivedDataPath build \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          build
+          
+    - name: Package IPA
+      run: |
+        mkdir -p Payload
+        cp -r build/Build/Products/Release-iphoneos/AppRenewer.app Payload/
+        zip -r AppRenewer.ipa Payload/
+        
+    - name: Upload IPA artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: AppRenewer-IPA
+        path: AppRenewer.ipa
