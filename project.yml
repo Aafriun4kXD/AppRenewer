@@ -1,0 +1,42 @@
+name: AppRenewer
+options:
+  bundleIdPrefix: com.apprenewer
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "15.0"
+
+targets:
+  AppRenewer:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - AppRenewer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.apprenewer.app
+        SWIFT_VERSION: 5.9
+        TARGETED_DEVICE_FAMILY: 1
+        IPHONEOS_DEPLOYMENT_TARGET: 16.0
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+        INFOPLIST_FILE: AppRenewer/Info.plist
+    info:
+      path: AppRenewer/Info.plist
+      properties:
+        CFBundleName: AppRenewer
+        CFBundleDisplayName: AppRenewer
+        CFBundleIdentifier: com.apprenewer.app
+        CFBundleVersion: "1"
+        CFBundleShortVersionString: "1.0"
+        UILaunchStoryboardName: ""
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.apprenewer.checkApps
+        NSFaceIDUsageDescription: "Для защиты Apple ID"
