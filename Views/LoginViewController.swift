@@ -41,8 +41,10 @@ class LoginViewController: UIViewController {
     }()
     
     private let logoutButton: UIButton = {
-        var config = UIButton.Configuration.destructive()
+        var config = UIButton.Configuration.tinted()
         config.title = "Выйти из Apple ID"
+        config.baseBackgroundColor = .systemRed
+        config.baseForegroundColor = .systemRed
         config.cornerStyle = .large
         let button = UIButton(configuration: config)
         button.translatesAutoresizingMaskIntoConstraints = false
