@@ -12,11 +12,17 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Show repo structure
+      run: find . -not -path './.git/*' | head -60
+
+    - name: Show Views folder
+      run: ls -la Views/
+
     - name: Install XcodeGen
       run: brew install xcodegen
 
     - name: Generate Xcode project
-      run: xcodegen generate
+      run: xcodegen generate --spec project.yml
 
     - name: Show Xcode version
       run: xcodebuild -version
